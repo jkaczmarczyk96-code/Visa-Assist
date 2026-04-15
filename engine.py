@@ -11,14 +11,14 @@ CACHE_TTL = 60 * 60 * 24 * 30
 
 
 # =========================
-# 🕒 CZ TIME (CET/CEST)
+# 🕒 CZ TIME
 # =========================
 def get_cz_time():
     return datetime.now(ZoneInfo("Europe/Prague"))
 
 
 # =========================
-# 💾 CACHE LOAD
+# 💾 CACHE
 # =========================
 def load_cache():
     if os.path.exists(CACHE_FILE):
@@ -26,16 +26,13 @@ def load_cache():
     return {}
 
 
-# =========================
-# 💾 CACHE SAVE
-# =========================
 def save_cache(cache):
     json.dump(cache, open(CACHE_FILE, "w", encoding="utf-8"),
               ensure_ascii=False, indent=2)
 
 
 # =========================
-# 🌍 ISO MAP PRO API
+# 🌍 ISO MAP
 # =========================
 ISO_API = {
     "Egypt": "EG",
@@ -60,7 +57,7 @@ def normalize_for_api(value):
 
 
 # =========================
-# 🌐 TRAVEL BUDDY API (PRIMARY)
+# 🌐 API
 # =========================
 def travel_buddy_api(passport, country):
     try:
@@ -101,7 +98,7 @@ def travel_buddy_api(passport, country):
 
 
 # =========================
-# 🌍 TRAVELBRIEFING (FREE FALLBACK)
+# 🌍 FALLBACK API
 # =========================
 def travelbriefing_api(country):
     try:
@@ -132,26 +129,11 @@ def travelbriefing_api(country):
 
 
 # =========================
-# 🧠 RULE ENGINE (LAST RESORT)
+# 🧠 RULE ENGINE
 # =========================
 def rule_engine(passport, country):
 
     rules = {
-        ("CZ", "Germany"): ("Visa-free (Schengen)", "90 days", "green"),
-        ("CZ", "France"): ("Visa-free (Schengen)", "90 days", "green"),
-        ("CZ", "Italy"): ("Visa-free (Schengen)", "90 days", "green"),
-        ("CZ", "Spain"): ("Visa-free (Schengen)", "90 days", "green"),
-
-        ("CZ", "United States"): ("ESTA required", "90 days", "yellow"),
-        ("CZ", "Canada"): ("eTA required", "180 days", "yellow"),
-        ("CZ", "United Kingdom"): ("ETA required", "180 days", "yellow"),
-
-        ("CZ", "Japan"): ("Visa-free", "90 days", "green"),
-        ("CZ", "China"): ("Visa required", "varies", "red"),
-
-        ("CZ", "Thailand"): ("Visa-free", "30 days", "green"),
-        ("CZ", "United Arab Emirates"): ("Visa-free / visa on arrival", "30 days", "blue"),
-
         ("CZ", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
         ("SK", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
     }
@@ -172,7 +154,7 @@ def rule_engine(passport, country):
 
 
 # =========================
-# 🚀 MAIN ENGINE
+# 🚀 MAIN
 # =========================
 def get(passport, country):
 
@@ -181,31 +163,36 @@ def get(passport, country):
     now = time.time()
 
     # =========================
-    # CACHE CHECK
+    # CACHE HIT
     # =========================
     if key in cache:
         if now - cache[key]["time"] < CACHE_TTL:
-            return cache[key]["data"]
+            cached_data = cache[key]["data"]
+
+            # ✔ použij čas zápisu
+            cached_data["generated_at"] = cache[key].get("created_at_cz")
+
+            return cached_data
 
     # =========================
-    # 1. API (PRIMARY)
+    # API
     # =========================
     result = travel_buddy_api(passport, country)
 
     # =========================
-    # 2. FREE API
+    # FALLBACK API
     # =========================
     if not result:
         result = travelbriefing_api(country)
 
     # =========================
-    # 3. RULE ENGINE
+    # RULE ENGINE
     # =========================
     if not result:
         result = rule_engine(passport, country)
 
     # =========================
-    # 4. FINAL FALLBACK
+    # FINAL FALLBACK
     # =========================
     if not result:
         result = {
@@ -216,25 +203,20 @@ def get(passport, country):
         }
 
     # =========================
-    # 🕒 CZ TIME METADATA
+    # 🕒 TIME
     # =========================
     cz_time = get_cz_time()
+    cz_str = cz_time.strftime("%Y-%m-%d %H:%M:%S")
 
-    result["generated_at"] = cz_time.strftime("%Y-%m-%d %H:%M:%S")
+    result["generated_at"] = cz_str
 
     # =========================
-    # 💾 CACHE WRITE (FULL TIME INFO)
+    # 💾 CACHE WRITE
     # =========================
     cache[key] = {
         "data": result,
-
-        # technický čas (TTL)
         "time": now,
-
-        # lidský CZ čas
-        "created_at_cz": cz_time.strftime("%Y-%m-%d %H:%M:%S"),
-
-        # ISO debug
+        "created_at_cz": cz_str,
         "created_at_iso": cz_time.isoformat()
     }
 
