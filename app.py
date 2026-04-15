@@ -1,11 +1,20 @@
 import streamlit as st
 from engine import get
-
-st.set_page_config(page_title="Visa Assist", layout="wide", page_icon="🛂")
+from countries import COUNTRIES_100
 
 
 # =========================
-# 🎨 STYLE (SHERPA STYLE)
+# 🌐 PAGE CONFIG
+# =========================
+st.set_page_config(
+    page_title="Visa Assist",
+    layout="wide",
+    page_icon="🛂"
+)
+
+
+# =========================
+# 🎨 SHERPA STYLE UI
 # =========================
 st.markdown("""
 <style>
@@ -14,29 +23,39 @@ st.markdown("""
 }
 
 .title {
-    font-size: 42px;
+    font-size: 44px;
     font-weight: 900;
     color: #0B2E59;
 }
 
 .subtitle {
-    color: #E30613;
     font-size: 16px;
-    margin-bottom: 20px;
+    color: #E30613;
+    margin-bottom: 25px;
 }
 
 .card {
     background: white;
-    padding: 20px;
-    border-radius: 14px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    padding: 22px;
+    border-radius: 16px;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.08);
     border-left: 6px solid #0B2E59;
 }
 
-.green {color: #1AAE6F; font-weight: bold;}
-.yellow {color: #F4B400; font-weight: bold;}
-.red {color: #E30613; font-weight: bold;}
+.badge-green {
+    color: #1AAE6F;
+    font-weight: bold;
+}
 
+.badge-yellow {
+    color: #F4B400;
+    font-weight: bold;
+}
+
+.badge-red {
+    color: #E30613;
+    font-weight: bold;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -45,11 +64,11 @@ st.markdown("""
 # HEADER
 # =========================
 st.markdown('<div class="title">🛂 Visa Assist</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Sherpa-style visa intelligence engine</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Real-time visa intelligence engine (Sherpa style)</div>', unsafe_allow_html=True)
 
 
 # =========================
-# INPUT
+# INPUTS
 # =========================
 col1, col2 = st.columns(2)
 
@@ -57,37 +76,47 @@ with col1:
     passport = st.selectbox("Passport", ["CZ", "SK"])
 
 with col2:
-    country = st.text_input("Destination country (ISO)", "US")
+    country = st.selectbox(
+        "Destination country",
+        list(COUNTRIES_100.keys()),
+        format_func=lambda x: COUNTRIES_100[x]
+    )
 
 
 # =========================
-# RESULT
+# ACTION
 # =========================
 if st.button("Check visa"):
 
-    data = get(passport, country)
+    result = get(passport, country)
 
-    color = data.get("visa_color", "yellow")
+    visa = result.get("visa_name", "Unknown")
+    duration = result.get("visa_duration", "N/A")
+    source = result.get("source", "UNKNOWN")
+    color = result.get("visa_color", "yellow")
 
+    # =========================
+    # OUTPUT CARD
+    # =========================
     st.markdown('<div class="card">', unsafe_allow_html=True)
 
     st.write("### ✈️ Travel result")
 
-    st.write("Visa:", data.get("visa_name"))
-    st.write("Duration:", data.get("visa_duration"))
-    st.write("Country:", data.get("country"))
+    st.write("🌍 Country:", COUNTRIES_100[country])
+    st.write("🛂 Visa type:", visa)
+    st.write("⏱ Duration:", duration)
 
-    # COLOR INDICATOR
-    st.markdown(f"Status: <span class='{color}'>{color.upper()}</span>", unsafe_allow_html=True)
+    # COLOR STATUS
+    if color == "green":
+        st.markdown("Status: 🟢 Visa-free", unsafe_allow_html=True)
+    elif color == "blue":
+        st.markdown("Status: 🔵 Visa on arrival / eVisa", unsafe_allow_html=True)
+    elif color == "yellow":
+        st.markdown("Status: 🟡 eTA / conditional entry", unsafe_allow_html=True)
+    else:
+        st.markdown("Status: 🔴 Visa required", unsafe_allow_html=True)
 
-    # REGISTRATION
-    if data.get("registration"):
-        st.warning(f"⚠ Mandatory registration: {data['registration']}")
-
-    # EXCEPTIONS
-    if data.get("exceptions"):
-        st.error("⚠ Exception rules apply")
-
-    st.write("Source:", data.get("source"))
+    # SOURCE
+    st.write("📡 Source:", source)
 
     st.markdown('</div>', unsafe_allow_html=True)
