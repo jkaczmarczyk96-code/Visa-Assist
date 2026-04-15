@@ -1,182 +1,135 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from engine import get, get_many
+from engine import get, get_country_list
 
-# ======================
-# UI
-# ======================
-st.set_page_config(page_title="Cestovní Asistent", layout="wide")
+# =========================
+# 🌐 NASTAVENÍ STRÁNKY
+# =========================
+st.set_page_config(
+    page_title="Visa Assist",
+    layout="wide",
+    page_icon="🛂"
+)
 
-st.title("🌍 Cestovní Asistent (FAST verze)")
-st.write("Optimalizovaná verze s cache + API + fallback")
+# =========================
+# 🎨 STYL (EUROP ASSISTANCE INSPIRED)
+# =========================
+st.markdown("""
+<style>
 
-# ======================
-# DATA
-# ======================
-countries = {
-    "CZ": "Czech Republic",
-    "SK": "Slovakia",
-
-    "AT": "Austria",
-    "DE": "Germany",
-    "PL": "Poland",
-    "IT": "Italy",
-    "FR": "France",
-    "ES": "Spain",
-    "HR": "Croatia",
-    "GR": "Greece",
-    "TR": "Turkey",
-    "EG": "Egypt",
-    "TN": "Tunisia",
-    "MA": "Morocco",
-
-    "AE": "United Arab Emirates",
-    "QA": "Qatar",
-    "SA": "Saudi Arabia",
-
-    "US": "United States",
-    "CA": "Canada",
-    "MX": "Mexico",
-
-    "TH": "Thailand",
-    "VN": "Vietnam",
-    "ID": "Indonesia",
-    "MY": "Malaysia",
-    "SG": "Singapore",
-    "JP": "Japan",
-    "KR": "South Korea",
-    "CN": "China",
-    "IN": "India",
-
-    "AU": "Australia",
-    "NZ": "New Zealand",
-
-    "BR": "Brazil",
-    "AR": "Argentina",
-    "CL": "Chile",
-    "PE": "Peru",
-
-    "ZA": "South Africa",
-    "KE": "Kenya",
-    "TZ": "Tanzania",
-
-    "IS": "Iceland",
-    "NO": "Norway",
-    "SE": "Sweden",
-    "FI": "Finland",
-    "DK": "Denmark",
-    "NL": "Netherlands",
-    "BE": "Belgium",
-    "CH": "Switzerland",
-    "GB": "United Kingdom",
-    "IE": "Ireland",
-
-    "PT": "Portugal",
-    "RO": "Romania",
-    "BG": "Bulgaria",
-    "HU": "Hungary",
-    "SI": "Slovenia",
-    "RS": "Serbia",
-    "UA": "Ukraine",
-    "GE": "Georgia",
-    "AM": "Armenia",
-    "AZ": "Azerbaijan",
-
-    "IL": "Israel",
-    "JO": "Jordan",
-    "LB": "Lebanon",
-    "OM": "Oman",
-    "KW": "Kuwait",
-    "BH": "Bahrain",
-
-    "PH": "Philippines",
-    "LK": "Sri Lanka",
-    "NP": "Nepal",
-    "BD": "Bangladesh",
-    "PK": "Pakistan",
-
-    "UZ": "Uzbekistan",
-    "KZ": "Kazakhstan",
-    "MN": "Mongolia",
-
-    "FJ": "Fiji",
-    "PG": "Papua New Guinea",
-    "VU": "Vanuatu",
-
-    "CU": "Cuba",
-    "DO": "Dominican Republic",
-    "JM": "Jamaica",
-    "BS": "Bahamas",
-
-    "CR": "Costa Rica",
-    "PA": "Panama",
-    "UY": "Uruguay",
-    "PY": "Paraguay",
-
-    "NG": "Nigeria",
-    "GH": "Ghana",
-    "ET": "Ethiopia",
-    "UG": "Uganda",
-    "RW": "Rwanda",
-    "SN": "Senegal"
+.stApp {
+    background-color: #F5F8FC;
 }
 
-# ======================
-# INPUT
-# ======================
+/* HLAVNÍ NADPIS */
+.main-title {
+    font-size: 44px;
+    font-weight: 900;
+    color: #0B2E59;
+    margin-bottom: 5px;
+}
+
+/* PODNADPIS */
+.subtitle {
+    font-size: 18px;
+    color: #E30613;
+    font-weight: 500;
+    margin-bottom: 25px;
+}
+
+/* KARTA VÝSLEDKU */
+.card {
+    background: white;
+    padding: 22px;
+    border-radius: 16px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    border-left: 6px solid #0B2E59;
+}
+
+/* TLAČÍTKO */
+.stButton>button {
+    background-color: #0B2E59;
+    color: white;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-weight: 600;
+    border: none;
+}
+
+.stButton>button:hover {
+    background-color: #E30613;
+    color: white;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
+# 🌍 HLAVIČKA
+# =========================
+st.markdown('<div class="main-title">🛂 Visa Assist</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Okamžité informace o vízových povinnostech po celém světě</div>', unsafe_allow_html=True)
+
+# =========================
+# 🌍 DATA
+# =========================
+countries = get_country_list()
+
+# =========================
+# 📥 VSTUP
+# =========================
 col1, col2 = st.columns(2)
 
 with col1:
-    passport = st.selectbox("Občanství", ["CZ", "SK"])
+    passport = st.selectbox("Občanství (pas)", ["CZ", "SK"])
 
 with col2:
     country = st.selectbox(
-        "Země",
+        "Cílová země",
         list(countries.keys()),
         format_func=lambda x: countries[x]
     )
 
-# ======================
-# DETAIL
-# ======================
-if st.button("Zkontrolovat víza"):
+# =========================
+# 📊 VÝSLEDEK
+# =========================
+if st.button("Zkontrolovat vízové podmínky"):
 
-    with st.spinner("Načítám data..."):
+    with st.spinner("Analyzuji vízové podmínky..."):
         data = get(passport, country)
 
-    st.success("Hotovo")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
 
-    st.write("### Výsledek")
-    st.write("Země:", countries[country])
-    st.write("Víza:", data["visa"])
-    st.write("Délka:", data["days"])
-    st.write("Zdroj:", data["source"])
+    st.write("### ✈️ Výsledek cesty")
+    st.write("**Cílová země:**", countries[country])
+    st.write("**Víza potřebná:**", "Ano" if data["visa"] else "Ne")
+    st.write("**Maximální délka pobytu:**", str(data["days"]), "dní")
+    st.write("**Zdroj dat:**", data["source"])
 
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ======================
-# MAPA (OPTIMALIZOVANÁ)
-# ======================
-st.subheader("Mapa světa (optimalizovaná)")
+# =========================
+# 🌍 MAPA SVĚTA
+# =========================
+st.markdown("---")
+st.subheader("🌍 Přehled světa")
 
-if st.checkbox("Zobrazit mapu"):
+if st.checkbox("Zobrazit mapu vízových podmínek"):
 
-    sample = list(countries.keys())  # můžeš dát [:20] pro ještě rychlejší
-
-    with st.spinner("Načítám mapu..."):
-        data_map = get_many(passport, sample)
-
-    df = pd.DataFrame([
-        {"country": c, "days": data_map[c]["days"]}
-        for c in sample
-    ])
+    with st.spinner("Načítám data pro celý svět..."):
+        df = pd.DataFrame([
+            {"země": c, "víza": 1 if get(passport, c)["visa"] else 0}
+            for c in countries.keys()
+        ])
 
     fig = px.choropleth(
         df,
-        locations="country",
+        locations="země",
         locationmode="ISO-3",
-        color="days",
-        color_continuous_scale="Blues"
+        color="víza",
+        color_continuous_scale=["#2E86DE", "#E30613"],
+        title="Mapa vízových požadavků"
     )
 
     st.plotly_chart(fig, use_container_width=True)
