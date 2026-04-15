@@ -9,7 +9,7 @@ CACHE_TTL = 60 * 60 * 24 * 30
 
 
 # =========================
-# 💾 CACHE
+# 💾 CACHE LOAD
 # =========================
 def load_cache():
     if os.path.exists(CACHE_FILE):
@@ -17,12 +17,16 @@ def load_cache():
     return {}
 
 
+# =========================
+# 💾 CACHE SAVE
+# =========================
 def save_cache(cache):
-    json.dump(cache, open(CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    json.dump(cache, open(CACHE_FILE, "w", encoding="utf-8"),
+              ensure_ascii=False, indent=2)
 
 
 # =========================
-# 🌍 NORMALIZER (FIXED)
+# 🌍 NORMALIZATION (EGYPT FIX)
 # =========================
 def normalize_input(country):
 
@@ -167,7 +171,7 @@ def rule_engine(passport, country):
 
 
 # =========================
-# 🚨 HARD OVERRIDE (EGYPT GUARANTEE)
+# 🚨 EGYPT HARD OVERRIDE
 # =========================
 def egypt_override(country):
 
@@ -183,7 +187,7 @@ def egypt_override(country):
 
 
 # =========================
-# 🚀 MAIN ENGINE
+# 🚀 MAIN ENGINE (CACHE + TIMESTAMP FIX)
 # =========================
 def get(passport, country):
 
@@ -191,33 +195,51 @@ def get(passport, country):
     key = f"{passport}_{country}"
     now = time.time()
 
-    # CACHE
+    # =========================
+    # CACHE HIT
+    # =========================
     if key in cache:
         if now - cache[key]["time"] < CACHE_TTL:
             return cache[key]["data"]
 
-    # 🔥 NORMALIZE INPUT
+    # =========================
+    # NORMALIZE INPUT
+    # =========================
     country = normalize_input(country)
 
-    # 🚨 0. HARD OVERRIDE (EGYPT ALWAYS WORKS)
+    # =========================
+    # EGYPT HARD OVERRIDE (100% SAFE)
+    # =========================
     result = egypt_override(country)
     if result:
-        cache[key] = {"data": result, "time": now}
+        cache[key] = {
+            "data": result,
+            "time": now,
+            "datetime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now))
+        }
         save_cache(cache)
         return result
 
-    # 1. PRIMARY API
+    # =========================
+    # 1. API
+    # =========================
     result = travel_buddy_api(passport, country)
 
+    # =========================
     # 2. FREE API
+    # =========================
     if not result:
         result = travelbriefing_api(country)
 
+    # =========================
     # 3. RULE ENGINE
+    # =========================
     if not result:
         result = rule_engine(passport, country)
 
-    # 4. FINAL SAFE FALLBACK
+    # =========================
+    # 4. FINAL FALLBACK
+    # =========================
     if not result:
         result = {
             "visa_name": "Visa rules vary",
@@ -226,7 +248,15 @@ def get(passport, country):
             "source": "Global fallback system"
         }
 
-    cache[key] = {"data": result, "time": now}
+    # =========================
+    # CACHE WRITE (WITH DATETIME)
+    # =========================
+    cache[key] = {
+        "data": result,
+        "time": now,
+        "datetime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now))
+    }
+
     save_cache(cache)
 
     return result
