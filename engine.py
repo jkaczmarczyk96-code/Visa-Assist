@@ -3,13 +3,22 @@ import json
 import os
 import time
 import streamlit as st
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 CACHE_FILE = "cache.json"
 CACHE_TTL = 60 * 60 * 24 * 30
 
 
 # =========================
-# 💾 CACHE
+# 🕒 CZ TIME (CET/CEST)
+# =========================
+def get_cz_time():
+    return datetime.now(ZoneInfo("Europe/Prague"))
+
+
+# =========================
+# 💾 CACHE LOAD
 # =========================
 def load_cache():
     if os.path.exists(CACHE_FILE):
@@ -17,13 +26,16 @@ def load_cache():
     return {}
 
 
+# =========================
+# 💾 CACHE SAVE
+# =========================
 def save_cache(cache):
     json.dump(cache, open(CACHE_FILE, "w", encoding="utf-8"),
               ensure_ascii=False, indent=2)
 
 
 # =========================
-# 🌍 ISO FOR API (KLÍČOVÉ)
+# 🌍 ISO MAP PRO API
 # =========================
 ISO_API = {
     "Egypt": "EG",
@@ -43,12 +55,12 @@ ISO_API = {
 }
 
 
-def normalize_for_api(country):
-    return ISO_API.get(country, country)
+def normalize_for_api(value):
+    return ISO_API.get(value, value)
 
 
 # =========================
-# 🌐 TRAVEL BUDDY API (PRIORITA 1)
+# 🌐 TRAVEL BUDDY API (PRIMARY)
 # =========================
 def travel_buddy_api(passport, country):
     try:
@@ -82,14 +94,14 @@ def travel_buddy_api(passport, country):
                 "source": "Travel Buddy API"
             }
 
-    except:
-        pass
+    except Exception as e:
+        print("API ERROR:", e)
 
     return None
 
 
 # =========================
-# 🌍 TRAVELBRIEFING (FALLBACK)
+# 🌍 TRAVELBRIEFING (FREE FALLBACK)
 # =========================
 def travelbriefing_api(country):
     try:
@@ -99,7 +111,6 @@ def travelbriefing_api(country):
 
         if r.status_code == 200:
             data = r.json()
-
             visa_data = data.get("visa")
 
             if isinstance(visa_data, dict):
@@ -114,8 +125,8 @@ def travelbriefing_api(country):
                 "source": "TravelBriefing"
             }
 
-    except:
-        pass
+    except Exception as e:
+        print("TravelBriefing ERROR:", e)
 
     return None
 
@@ -126,10 +137,6 @@ def travelbriefing_api(country):
 def rule_engine(passport, country):
 
     rules = {
-
-        ("CZ", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
-        ("SK", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
-
         ("CZ", "Germany"): ("Visa-free (Schengen)", "90 days", "green"),
         ("CZ", "France"): ("Visa-free (Schengen)", "90 days", "green"),
         ("CZ", "Italy"): ("Visa-free (Schengen)", "90 days", "green"),
@@ -144,6 +151,9 @@ def rule_engine(passport, country):
 
         ("CZ", "Thailand"): ("Visa-free", "30 days", "green"),
         ("CZ", "United Arab Emirates"): ("Visa-free / visa on arrival", "30 days", "blue"),
+
+        ("CZ", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
+        ("SK", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
     }
 
     key = (passport, country)
@@ -162,7 +172,7 @@ def rule_engine(passport, country):
 
 
 # =========================
-# 🚀 MAIN ENGINE (API FIRST FLOW)
+# 🚀 MAIN ENGINE
 # =========================
 def get(passport, country):
 
@@ -170,23 +180,33 @@ def get(passport, country):
     key = f"{passport}_{country}"
     now = time.time()
 
-    # CACHE
+    # =========================
+    # CACHE CHECK
+    # =========================
     if key in cache:
         if now - cache[key]["time"] < CACHE_TTL:
             return cache[key]["data"]
 
-    # 1. API (PRIORITY)
+    # =========================
+    # 1. API (PRIMARY)
+    # =========================
     result = travel_buddy_api(passport, country)
 
+    # =========================
     # 2. FREE API
+    # =========================
     if not result:
         result = travelbriefing_api(country)
 
+    # =========================
     # 3. RULE ENGINE
+    # =========================
     if not result:
         result = rule_engine(passport, country)
 
-    # 4. FALLBACK
+    # =========================
+    # 4. FINAL FALLBACK
+    # =========================
     if not result:
         result = {
             "visa_name": "Visa rules vary",
@@ -195,13 +215,27 @@ def get(passport, country):
             "source": "Global fallback"
         }
 
-    # CACHE + DATETIME
-    result["generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now))
+    # =========================
+    # 🕒 CZ TIME METADATA
+    # =========================
+    cz_time = get_cz_time()
 
+    result["generated_at"] = cz_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    # =========================
+    # 💾 CACHE WRITE (FULL TIME INFO)
+    # =========================
     cache[key] = {
         "data": result,
+
+        # technický čas (TTL)
         "time": now,
-        "datetime": result["generated_at"]
+
+        # lidský CZ čas
+        "created_at_cz": cz_time.strftime("%Y-%m-%d %H:%M:%S"),
+
+        # ISO debug
+        "created_at_iso": cz_time.isoformat()
     }
 
     save_cache(cache)
