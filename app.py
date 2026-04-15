@@ -16,40 +16,26 @@ def get_cz_time():
 # ⚙️ PAGE
 # =========================
 st.set_page_config(
-    page_title="Visa Assist AI",
+    page_title="Visa Assist",
     page_icon="🌍",
     layout="centered"
 )
 
 
 # =========================
-# 🎨 UI STYLE
+# 🎨 STYLE (minimal safe)
 # =========================
 st.markdown("""
 <style>
-
-body {
-    background-color: #f4f7fb;
-}
-
 .block-container {
     max-width: 900px;
 }
-
 .stButton > button {
     background: linear-gradient(90deg,#0b2e4a,#1b4f8a);
     color: white;
-    border-radius: 12px;
+    border-radius: 10px;
     font-weight: 600;
-    padding: 0.6rem 1.2rem;
-    border: none;
 }
-
-.stButton > button:hover {
-    background: #e30613;
-    transform: scale(1.02);
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,132 +43,78 @@ body {
 # =========================
 # HEADER
 # =========================
-st.title("🌍 Visa Assist AI")
-st.caption("Smart vízový asistent (CZ / SK comparison + AI ready)")
+st.title("🌍 Visa Assist")
+st.caption("Rychlá a přehledná kontrola vízových podmínek")
 
 st.divider()
 
 
 # =========================
-# INPUTS
+# INPUT
 # =========================
+passport = st.selectbox("🛂 Pas", ["CZ", "SK"])
 country = st.selectbox("🌍 Země", COUNTRIES)
 
-mode = st.radio("📊 Režim", ["Single passport", "Compare CZ vs SK"])
-
 
 # =========================
-# SINGLE MODE
+# ACTION
 # =========================
-if mode == "Single passport":
+if st.button("🔍 Zkontrolovat vízové podmínky"):
 
-    passport = st.selectbox("🛂 Pas", ["CZ", "SK"])
-
-    if st.button("🔍 Zkontrolovat"):
-
+    with st.spinner("Načítám aktuální data..."):
         result = get(passport, country)
-        cz_time = get_cz_time()
 
-        status_map = {
-            "green": ("Visa-free", "#2ecc71"),
-            "blue": ("Visa on arrival / eVisa", "#3498db"),
-            "yellow": ("eTA / Authorization required", "#f1c40f"),
-            "red": ("Visa required", "#e74c3c")
-        }
+    cz_time = get_cz_time()
 
-        label, color = status_map.get(result["visa_color"], ("Unknown", "#999"))
+    # =========================
+    # STATUS MAP
+    # =========================
+    status_map = {
+        "green": ("Visa-free entry", "#2ecc71"),
+        "blue": ("Visa on arrival / eVisa", "#3498db"),
+        "yellow": ("Electronic authorization required", "#f1c40f"),
+        "red": ("Visa required before travel", "#e74c3c")
+    }
 
-        confidence_map = {
-            "Travel Buddy API": 95,
-            "TravelBriefing": 80,
-            "Rule Engine": 70,
-            "Fallback system": 40
-        }
+    label, color = status_map.get(
+        result.get("visa_color"),
+        ("Unknown status", "#999")
+    )
 
-        confidence = confidence_map.get(result.get("source"), 50)
+    # =========================
+    # CONFIDENCE SCORE
+    # =========================
+    confidence_map = {
+        "Travel Buddy API": 95,
+        "TravelBriefing": 80,
+        "Rule Engine": 70,
+        "Fallback system": 40,
+        "Global fallback": 30
+    }
 
-        # =========================
-        # CARD
-        # =========================
-        st.markdown(f"""
-        <div style="
-            background:{color};
-            padding:28px;
-            border-radius:20px;
-            color:white;
-            box-shadow: 0 12px 35px rgba(0,0,0,0.18);
-            margin-top:20px;
-        ">
+    confidence = confidence_map.get(result.get("source"), 50)
 
-            <h2>{country}</h2>
-            <h3>{label}</h3>
+    # =========================
+    # CARD (SAFE STREAMLIT)
+    # =========================
+    with st.container(border=True):
 
-            <hr style="border:none;height:1px;background:rgba(255,255,255,0.3);">
+        # barevný indikátor
+        st.markdown(
+            f'<div style="height:8px;border-radius:10px;background:{color};margin-bottom:12px;"></div>',
+            unsafe_allow_html=True
+        )
 
-            <p><b>Visa type:</b> {result.get("visa_name")}</p>
-            <p><b>Max stay:</b> {result.get("visa_duration")}</p>
-            <p><b>Confidence:</b> {confidence}%</p>
+        st.subheader(country)
+        st.markdown(f"**{label}**")
 
-            <hr style="border:none;height:1px;background:rgba(255,255,255,0.3);">
+        st.divider()
 
-            <p>Source: {result.get("source")}</p>
-            <p>Updated: {result.get("generated_at")}</p>
+        st.write("🛂 Visa type:", result.get("visa_name", "N/A"))
+        st.write("⏳ Maximum stay:", result.get("visa_duration", "N/A"))
+        st.write("📊 Confidence:", f"{confidence}%")
 
-        </div>
-        """, unsafe_allow_html=True)
+        st.divider()
 
-        # =========================
-        # 🤖 AI EXPLAIN (PLACEHOLDER)
-        # =========================
-        with st.expander("🤖 Explain this result (AI)"):
-            st.info(
-                f"""
-                This result is based on: {result.get('source')}.
-
-                - Visa type: {result.get('visa_name')}
-                - Max stay: {result.get('visa_duration')}
-                - Status: {label}
-
-                👉 AI explanation layer can be connected here (OpenAI / GPT API).
-                """
-            )
-
-
-# =========================
-# COMPARE MODE
-# =========================
-else:
-
-    if st.button("⚖️ Compare CZ vs SK"):
-
-        cz = get("CZ", country)
-        sk = get("SK", country)
-
-        def render_card(title, data):
-            status_map = {
-                "green": ("Visa-free", "#2ecc71"),
-                "blue": ("Visa on arrival / eVisa", "#3498db"),
-                "yellow": ("eTA required", "#f1c40f"),
-                "red": ("Visa required", "#e74c3c")
-            }
-
-            label, color = status_map.get(data["visa_color"], ("Unknown", "#999"))
-
-            st.markdown(f"""
-            <div style="
-                background:{color};
-                padding:20px;
-                border-radius:16px;
-                color:white;
-                margin-top:15px;
-            ">
-                <h3>{title}</h3>
-                <p><b>Status:</b> {label}</p>
-                <p><b>Visa:</b> {data.get('visa_name')}</p>
-                <p><b>Max stay:</b> {data.get('visa_duration')}</p>
-                <p><b>Source:</b> {data.get('source')}</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-        render_card("🇨🇿 Czech Republic passport", cz)
-        render_card("🇸🇰 Slovak passport", sk)
+        st.caption(f"Source: {result.get('source')}")
+        st.caption(f"Updated: {result.get('generated_at')} (CET)")
