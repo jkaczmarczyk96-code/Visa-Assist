@@ -22,36 +22,35 @@ def save_cache(cache):
 
 
 # =========================
-# 🌍 FULL INPUT NORMALIZATION (CRITICAL FIX)
+# 🌍 NORMALIZER (FIXED)
 # =========================
 def normalize_input(country):
 
+    if not country:
+        return ""
+
+    c = country.strip().lower()
+
     MAP = {
-        # 🇪🇬 EGYPT FIX
-        "EG": "Egypt",
+        "eg": "Egypt",
         "egypt": "Egypt",
-        "Egypt": "Egypt",
-        "Egypt ": "Egypt",
-        "Arab Republic of Egypt": "Egypt",
+        "arab republic of egypt": "Egypt",
 
-        # 🇦🇪 UAE FIX
-        "AE": "United Arab Emirates",
-        "UAE": "United Arab Emirates",
+        "ae": "United Arab Emirates",
+        "uae": "United Arab Emirates",
 
-        # 🇺🇸 USA FIX
-        "US": "United States",
-        "USA": "United States",
+        "us": "United States",
+        "usa": "United States",
 
-        # 🇨🇿 CZ / SK
-        "CZ": "Czech Republic",
-        "SK": "Slovakia"
+        "cz": "Czech Republic",
+        "sk": "Slovakia"
     }
 
-    return MAP.get(country, country.strip())
+    return MAP.get(c, country.strip())
 
 
 # =========================
-# 🌍 TRAVEL BUDDY API (PRIMARY)
+# 🌐 TRAVEL BUDDY API
 # =========================
 def travel_buddy_api(passport, country):
     try:
@@ -92,7 +91,7 @@ def travel_buddy_api(passport, country):
 
 
 # =========================
-# 🌍 TRAVELBRIEFING (FREE FALLBACK)
+# 🌍 TRAVELBRIEFING API
 # =========================
 def travelbriefing_api(country):
     try:
@@ -124,7 +123,7 @@ def travelbriefing_api(country):
 
 
 # =========================
-# 🧠 RULE ENGINE (EDGE CASES)
+# 🧠 RULE ENGINE
 # =========================
 def rule_engine(passport, country):
 
@@ -148,7 +147,6 @@ def rule_engine(passport, country):
 
         ("CZ", "United Arab Emirates"): ("Visa-free / visa on arrival", "30 days", "blue"),
 
-        # 🇪🇬 EGYPT HARD FIX
         ("CZ", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
         ("SK", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
     }
@@ -162,16 +160,23 @@ def rule_engine(passport, country):
             "visa_name": visa,
             "visa_duration": duration,
             "visa_color": color,
-            "source": "Rule Engine (offline fallback)"
+            "source": "Rule Engine"
         }
 
-    # 🔥 SAFETY NET (ABSOLUTNÍ GARANCE)
+    return None
+
+
+# =========================
+# 🚨 HARD OVERRIDE (EGYPT GUARANTEE)
+# =========================
+def egypt_override(country):
+
     if country == "Egypt":
         return {
             "visa_name": "Visa on arrival / eVisa",
             "visa_duration": "30 days",
             "visa_color": "blue",
-            "source": "Egypt safety fallback"
+            "source": "EGYPT HARD OVERRIDE"
         }
 
     return None
@@ -191,10 +196,17 @@ def get(passport, country):
         if now - cache[key]["time"] < CACHE_TTL:
             return cache[key]["data"]
 
-    # 🔥 NORMALIZE INPUT (CRITICAL FIX)
+    # 🔥 NORMALIZE INPUT
     country = normalize_input(country)
 
-    # 1. API
+    # 🚨 0. HARD OVERRIDE (EGYPT ALWAYS WORKS)
+    result = egypt_override(country)
+    if result:
+        cache[key] = {"data": result, "time": now}
+        save_cache(cache)
+        return result
+
+    # 1. PRIMARY API
     result = travel_buddy_api(passport, country)
 
     # 2. FREE API
@@ -205,7 +217,7 @@ def get(passport, country):
     if not result:
         result = rule_engine(passport, country)
 
-    # 4. FINAL FALLBACK (NEVER EMPTY)
+    # 4. FINAL SAFE FALLBACK
     if not result:
         result = {
             "visa_name": "Visa rules vary",
