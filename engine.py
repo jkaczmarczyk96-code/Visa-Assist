@@ -3,14 +3,13 @@ import json
 import os
 import time
 import streamlit as st
-from bs4 import BeautifulSoup
 
 CACHE_FILE = "cache.json"
 CACHE_TTL = 60 * 60 * 24 * 30  # 30 dní
 
 
 # ======================
-# CACHE
+# CACHE (disk)
 # ======================
 def load_cache():
     if os.path.exists(CACHE_FILE):
@@ -19,16 +18,16 @@ def load_cache():
 
 
 def save_cache(cache):
-    json.dump(cache, open(CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    json.dump(cache, open(CACHE_FILE, "w", encoding="utf-8"),
+              ensure_ascii=False, indent=2)
 
 
 # ======================
-# API (TRAVEL BUDDY)
+# API
 # ======================
 def api(passport, country):
-
     try:
-        api_key = st.secrets["TRAVEL_BUDDY_API_KEY"]
+        api_key = st.secrets.get("TRAVEL_BUDDY_API_KEY", None)
 
         r = requests.get(
             "https://api.travel-buddy.ai/v2/visa/check",
@@ -47,7 +46,6 @@ def api(passport, country):
                 "days": d.get("stay_days"),
                 "source": "API"
             }
-
     except:
         pass
 
@@ -55,12 +53,12 @@ def api(passport, country):
 
 
 # ======================
-# WIKIPEDIA FALLBACK
+# WIKI FALLBACK (LIGHT)
 # ======================
 def wiki(passport, country):
     try:
         url = f"https://en.wikipedia.org/wiki/Visa_requirements_for_{passport}_citizens"
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, timeout=5)
 
         if country.lower() in r.text.lower():
             return {
@@ -75,15 +73,16 @@ def wiki(passport, country):
 
 
 # ======================
-# HLAVNÍ LOGIKA
+# 🚀 HLAVNÍ FUNKCE (STREAMLIT CACHE)
 # ======================
+@st.cache_data(ttl=60*60*24*30)
 def get(passport, country):
 
     cache = load_cache()
     key = f"{passport}_{country}"
     now = time.time()
 
-    # CACHE (30 dní)
+    # CACHE HIT (disk)
     if key in cache:
         item = cache[key]
         if now - item["time"] < CACHE_TTL:
@@ -92,11 +91,11 @@ def get(passport, country):
     # API
     result = api(passport, country)
 
-    # FALLBACK
+    # WIKI fallback
     if not result:
         result = wiki(passport, country)
 
-    # FINAL
+    # FINAL fallback
     if not result:
         result = {
             "visa": None,
@@ -112,3 +111,17 @@ def get(passport, country):
     save_cache(cache)
 
     return result
+
+
+# ======================
+# 🚀 FAST BATCH (PRO MAPU)
+# ======================
+@st.cache_data(ttl=60*60*24*30)
+def get_many(passport, countries):
+
+    results = {}
+
+    for c in countries:
+        results[c] = get(passport, c)
+
+    return results
