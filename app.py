@@ -99,7 +99,7 @@ hr {
 st.markdown("""
 <div class="hero">
     <div class="title">🛂 Visa Assist</div>
-    <div class="subtitle">Cestovní vízová asistence – Europ Assistance styl</div>
+    <div class="subtitle">Asistent pro vyhledání víz</div>
 </div>
 """, unsafe_allow_html=True)
 
