@@ -9,7 +9,7 @@ CACHE_TTL = 60 * 60 * 24 * 30
 
 
 # =========================
-# 💾 CACHE SYSTEM
+# 💾 CACHE
 # =========================
 def load_cache():
     if os.path.exists(CACHE_FILE):
@@ -22,38 +22,36 @@ def save_cache(cache):
 
 
 # =========================
-# 🌍 ISO MAP (CRITICAL FIX)
+# 🌍 FULL INPUT NORMALIZATION (CRITICAL FIX)
 # =========================
-ISO_MAP = {
-    "Czech Republic": "CZ",
-    "Slovakia": "SK",
-    "Germany": "DE",
-    "France": "FR",
-    "Italy": "IT",
-    "Spain": "ES",
-    "Portugal": "PT",
-    "Egypt": "EG",
-    "United Arab Emirates": "AE",
-    "United States": "US",
-    "Canada": "CA",
-    "United Kingdom": "GB",
-    "Japan": "JP",
-    "China": "CN",
-    "Thailand": "TH",
-    "Vietnam": "VN",
-    "Turkey": "TR"
-}
+def normalize_input(country):
+
+    MAP = {
+        # 🇪🇬 EGYPT FIX
+        "EG": "Egypt",
+        "egypt": "Egypt",
+        "Egypt": "Egypt",
+        "Egypt ": "Egypt",
+        "Arab Republic of Egypt": "Egypt",
+
+        # 🇦🇪 UAE FIX
+        "AE": "United Arab Emirates",
+        "UAE": "United Arab Emirates",
+
+        # 🇺🇸 USA FIX
+        "US": "United States",
+        "USA": "United States",
+
+        # 🇨🇿 CZ / SK
+        "CZ": "Czech Republic",
+        "SK": "Slovakia"
+    }
+
+    return MAP.get(country, country.strip())
 
 
 # =========================
-# 🧠 NORMALIZER
-# =========================
-def normalize_country(country):
-    return ISO_MAP.get(country, country.replace(" ", "_"))
-
-
-# =========================
-# 🌐 1. TRAVEL BUDDY API (PRIMARY)
+# 🌍 TRAVEL BUDDY API (PRIMARY)
 # =========================
 def travel_buddy_api(passport, country):
     try:
@@ -94,11 +92,11 @@ def travel_buddy_api(passport, country):
 
 
 # =========================
-# 🌍 2. TRAVELBRIEFING API (FREE FALLBACK)
+# 🌍 TRAVELBRIEFING (FREE FALLBACK)
 # =========================
 def travelbriefing_api(country):
     try:
-        url = f"https://travelbriefing.org/{normalize_country(country)}?format=json"
+        url = f"https://travelbriefing.org/{country.replace(' ', '_')}?format=json"
 
         r = requests.get(url, timeout=8)
 
@@ -107,7 +105,6 @@ def travelbriefing_api(country):
 
             visa_data = data.get("visa")
 
-            # FIX: string OR dict
             if isinstance(visa_data, dict):
                 visa = visa_data.get("info", "Visa information available")
             else:
@@ -127,7 +124,7 @@ def travelbriefing_api(country):
 
 
 # =========================
-# 🧠 3. RULE ENGINE (EDGE CASE FIXES)
+# 🧠 RULE ENGINE (EDGE CASES)
 # =========================
 def rule_engine(passport, country):
 
@@ -138,21 +135,22 @@ def rule_engine(passport, country):
         ("CZ", "Italy"): ("Visa-free (Schengen)", "90 days", "green"),
         ("CZ", "Spain"): ("Visa-free (Schengen)", "90 days", "green"),
 
-        ("CZ", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
-        ("SK", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
-
-        ("CZ", "United Arab Emirates"): ("Visa-free / visa on arrival", "30 days", "blue"),
-
         ("CZ", "Thailand"): ("Visa-free", "30 days", "green"),
 
         ("CZ", "United States"): ("ESTA required", "90 days", "yellow"),
         ("CZ", "Canada"): ("eTA required", "180 days", "yellow"),
 
-        ("CZ", "United Kingdom"): ("ETA / visa rules apply", "180 days", "yellow"),
+        ("CZ", "United Kingdom"): ("ETA required", "180 days", "yellow"),
 
         ("CZ", "Japan"): ("Visa-free", "90 days", "green"),
 
         ("CZ", "China"): ("Visa required", "varies", "red"),
+
+        ("CZ", "United Arab Emirates"): ("Visa-free / visa on arrival", "30 days", "blue"),
+
+        # 🇪🇬 EGYPT HARD FIX
+        ("CZ", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
+        ("SK", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
     }
 
     key = (passport, country)
@@ -165,6 +163,15 @@ def rule_engine(passport, country):
             "visa_duration": duration,
             "visa_color": color,
             "source": "Rule Engine (offline fallback)"
+        }
+
+    # 🔥 SAFETY NET (ABSOLUTNÍ GARANCE)
+    if country == "Egypt":
+        return {
+            "visa_name": "Visa on arrival / eVisa",
+            "visa_duration": "30 days",
+            "visa_color": "blue",
+            "source": "Egypt safety fallback"
         }
 
     return None
@@ -184,11 +191,11 @@ def get(passport, country):
         if now - cache[key]["time"] < CACHE_TTL:
             return cache[key]["data"]
 
-    # NORMALIZE INPUT FOR API
-    country_api = normalize_country(country)
+    # 🔥 NORMALIZE INPUT (CRITICAL FIX)
+    country = normalize_input(country)
 
-    # 1. PRIMARY API
-    result = travel_buddy_api(passport, country_api)
+    # 1. API
+    result = travel_buddy_api(passport, country)
 
     # 2. FREE API
     if not result:
@@ -198,7 +205,7 @@ def get(passport, country):
     if not result:
         result = rule_engine(passport, country)
 
-    # 4. FINAL SAFE FALLBACK
+    # 4. FINAL FALLBACK (NEVER EMPTY)
     if not result:
         result = {
             "visa_name": "Visa rules vary",
