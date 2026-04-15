@@ -6,12 +6,13 @@ import streamlit as st
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+
 CACHE_FILE = "cache.json"
 CACHE_TTL = 60 * 60 * 24 * 30
 
 
 # =========================
-# 🕒 CZ TIME
+# 🕒 TIME
 # =========================
 def get_cz_time():
     return datetime.now(ZoneInfo("Europe/Prague"))
@@ -32,32 +33,76 @@ def save_cache(cache):
 
 
 # =========================
-# 🌍 ISO MAP
+# 🌍 ISO NORMALIZER
 # =========================
 ISO_API = {
-    "Egypt": "EG",
-    "United Arab Emirates": "AE",
     "United States": "US",
     "Czech Republic": "CZ",
     "Slovakia": "SK",
-    "Germany": "DE",
-    "France": "FR",
-    "Italy": "IT",
-    "Spain": "ES",
+    "United Kingdom": "GB",
+    "South Korea": "KR",
+    "United Arab Emirates": "AE",
+    "Egypt": "EG",
     "Thailand": "TH",
     "Japan": "JP",
-    "China": "CN",
-    "Turkey": "TR",
     "Canada": "CA"
 }
 
 
-def normalize_for_api(value):
+def normalize_country(value):
     return ISO_API.get(value, value)
 
 
 # =========================
-# 🌐 API
+# 🧠 VISA COLOR DETECTOR (IMPROVED)
+# =========================
+def detect_color(text: str):
+
+    text = (text or "").lower()
+
+    if "visa free" in text or "without visa" in text:
+        return "green"
+
+    if "visa on arrival" in text:
+        return "blue"
+
+    if "evisa" in text or "electronic visa" in text:
+        return "yellow"
+
+    if "visa required" in text:
+        return "red"
+
+    return "yellow"
+
+
+# =========================
+# ⏳ MAX STAY PARSER
+# =========================
+def extract_max_stay(text: str):
+
+    if not text:
+        return "Unknown"
+
+    t = text.lower()
+
+    # basic patterns (robust enough for API responses)
+    if "90" in t:
+        return "Up to 90 days"
+
+    if "30" in t:
+        return "Up to 30 days"
+
+    if "180" in t:
+        return "Up to 180 days"
+
+    if "365" in t:
+        return "Up to 1 year"
+
+    return text
+
+
+# =========================
+# 🌐 TRAVEL BUDDY API
 # =========================
 def travel_buddy_api(passport, country):
     try:
@@ -72,8 +117,8 @@ def travel_buddy_api(passport, country):
         }
 
         payload = {
-            "passport": normalize_for_api(passport),
-            "destination": normalize_for_api(country)
+            "passport": normalize_country(passport),
+            "destination": normalize_country(country)
         }
 
         r = requests.post(url, headers=headers, json=payload, timeout=8)
@@ -84,10 +129,14 @@ def travel_buddy_api(passport, country):
             primary = rules.get("primary_rule", {})
             secondary = rules.get("secondary_rule", {})
 
+            name = primary.get("name") or secondary.get("name")
+            duration = primary.get("duration") or secondary.get("duration")
+            color = primary.get("color") or "yellow"
+
             return {
-                "visa_name": primary.get("name") or secondary.get("name"),
-                "visa_duration": primary.get("duration") or secondary.get("duration"),
-                "visa_color": primary.get("color", "yellow"),
+                "visa_name": name,
+                "visa_duration": duration,
+                "visa_color": color,
                 "source": "Travel Buddy API"
             }
 
@@ -110,14 +159,11 @@ def travelbriefing_api(country):
             data = r.json()
             visa_data = data.get("visa")
 
-            if isinstance(visa_data, dict):
-                visa = visa_data.get("info", "Visa info available")
-            else:
-                visa = visa_data or "Visa info available"
+            text = visa_data.get("info") if isinstance(visa_data, dict) else visa_data
 
             return {
-                "visa_name": visa,
-                "visa_duration": "See details",
+                "visa_name": text,
+                "visa_duration": "Check details",
                 "visa_color": "blue",
                 "source": "TravelBriefing"
             }
@@ -136,6 +182,8 @@ def rule_engine(passport, country):
     rules = {
         ("CZ", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
         ("SK", "Egypt"): ("Visa on arrival / eVisa", "30 days", "blue"),
+        ("CZ", "Japan"): ("Visa free", "90 days", "green"),
+        ("SK", "Japan"): ("Visa free", "90 days", "green"),
     }
 
     key = (passport, country)
@@ -154,7 +202,7 @@ def rule_engine(passport, country):
 
 
 # =========================
-# 🚀 MAIN
+# 🚀 MAIN ENGINE
 # =========================
 def get(passport, country):
 
@@ -167,57 +215,46 @@ def get(passport, country):
     # =========================
     if key in cache:
         if now - cache[key]["time"] < CACHE_TTL:
-            cached_data = cache[key]["data"]
-
-            # ✔ použij čas zápisu
-            cached_data["generated_at"] = cache[key].get("created_at_cz")
-
-            return cached_data
+            return cache[key]["data"]
 
     # =========================
-    # API
+    # API PIPELINE
     # =========================
     result = travel_buddy_api(passport, country)
 
-    # =========================
-    # FALLBACK API
-    # =========================
     if not result:
         result = travelbriefing_api(country)
 
-    # =========================
-    # RULE ENGINE
-    # =========================
     if not result:
         result = rule_engine(passport, country)
 
-    # =========================
-    # FINAL FALLBACK
-    # =========================
     if not result:
         result = {
             "visa_name": "Visa rules vary",
             "visa_duration": "Check embassy",
             "visa_color": "yellow",
-            "source": "Global fallback"
+            "source": "Fallback system"
         }
 
     # =========================
-    # 🕒 TIME
+    # 🧠 IMPROVEMENT LAYER (FIX DATA QUALITY)
     # =========================
-    cz_time = get_cz_time()
-    cz_str = cz_time.strftime("%Y-%m-%d %H:%M:%S")
 
-    result["generated_at"] = cz_str
+    combined_text = f"{result.get('visa_name','')} {result.get('visa_duration','')}"
+
+    result["visa_color"] = detect_color(combined_text)
+    result["visa_duration"] = extract_max_stay(result.get("visa_duration"))
+
+    # timestamp
+    cz_time = get_cz_time()
+    result["generated_at"] = cz_time.strftime("%Y-%m-%d %H:%M:%S")
 
     # =========================
     # 💾 CACHE WRITE
     # =========================
     cache[key] = {
         "data": result,
-        "time": now,
-        "created_at_cz": cz_str,
-        "created_at_iso": cz_time.isoformat()
+        "time": now
     }
 
     save_cache(cache)
