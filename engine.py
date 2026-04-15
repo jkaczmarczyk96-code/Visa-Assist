@@ -9,13 +9,6 @@ CACHE_TTL = 60 * 60 * 24 * 30
 
 
 # =========================
-# 🌍 NORMALIZE
-# =========================
-def normalize_country(c):
-    return c.strip().upper()
-
-
-# =========================
 # 💾 CACHE
 # =========================
 def load_cache():
@@ -29,9 +22,9 @@ def save_cache(cache):
 
 
 # =========================
-# 🌐 RAPIDAPI v2 FULL
+# 🌐 1. TRAVEL BUDDY API (PRIMARY)
 # =========================
-def api(passport, country):
+def travel_buddy_api(passport, country):
     try:
         key = st.secrets["TRAVEL_BUDDY_API_KEY"]
 
@@ -48,79 +41,80 @@ def api(passport, country):
             "destination": country
         }
 
-        r = requests.post(url, headers=headers, json=payload, timeout=10)
+        r = requests.post(url, headers=headers, json=payload, timeout=8)
 
         if r.status_code == 200:
             data = r.json().get("data", {})
-
             rules = data.get("visa_rules", {})
             primary = rules.get("primary_rule", {})
             secondary = rules.get("secondary_rule", {})
-            registration = data.get("mandatory_registration", {})
-            exceptions = data.get("exception_rules", [])
-            dest = data.get("destination", {})
 
             return {
-                # VISA
-                "visa_name": primary.get("name"),
-                "visa_duration": primary.get("duration"),
-                "visa_color": primary.get("color"),
-
-                # SECONDARY
-                "secondary_name": secondary.get("name"),
-                "secondary_duration": secondary.get("duration"),
-
-                # REGISTRATION
-                "registration": registration.get("name"),
-                "registration_link": registration.get("link"),
-
-                # EXCEPTIONS
-                "exceptions": exceptions,
-
-                # DESTINATION DATA
-                "country": dest.get("name"),
-                "capital": dest.get("capital"),
-                "currency": dest.get("currency"),
-                "population": dest.get("population"),
-                "timezone": dest.get("timezone"),
-
-                # SOURCE
-                "source": "RAPIDAPI v2 FULL"
+                "visa_name": primary.get("name") or secondary.get("name"),
+                "visa_duration": primary.get("duration") or secondary.get("duration"),
+                "visa_color": primary.get("color", "yellow"),
+                "source": "Travel Buddy API"
             }
 
-    except Exception as e:
-        print("API ERROR:", e)
+    except:
+        pass
 
     return None
 
 
 # =========================
-# 🧠 FALLBACK (NO UNKNOWN)
+# 🌍 2. TRAVELBRIEFING API (FREE FALLBACK)
 # =========================
-def fallback(passport, country):
+def travelbriefing_api(country):
+    try:
+        # TravelBriefing uses country names with underscore
+        url = f"https://travelbriefing.org/{country.replace(' ', '_')}?format=json"
+
+        r = requests.get(url, timeout=8)
+
+        if r.status_code == 200:
+            data = r.json()
+
+            visa = data.get("visa", {}).get("info", "Unknown visa rules")
+
+            return {
+                "visa_name": visa,
+                "visa_duration": "See details",
+                "visa_color": "blue",
+                "source": "TravelBriefing (FREE fallback)"
+            }
+
+    except:
+        pass
+
+    return None
+
+
+# =========================
+# 🧠 3. LOCAL FALLBACK (NEVER FAILS)
+# =========================
+def local_fallback(passport, country):
 
     if passport in ["CZ", "SK"] and country in ["DE","FR","IT","ES","AT","NL","BE","PT","GR"]:
         return {
             "visa_name": "Visa-free (Schengen)",
             "visa_duration": "90 days",
             "visa_color": "green",
-            "source": "RULE ENGINE"
+            "source": "Local rules engine"
         }
 
     return {
-        "visa_name": "Estimated visa required",
-        "visa_duration": "90 days",
+        "visa_name": "Visa required (estimated)",
+        "visa_duration": "Varies",
         "visa_color": "yellow",
-        "source": "GLOBAL RULES"
+        "source": "Fallback rules"
     }
 
 
 # =========================
-# 🧠 MAIN ENGINE
+# 🚀 MAIN ENGINE
 # =========================
 def get(passport, country):
-
-    country = normalize_country(country)
 
     cache = load_cache()
     key = f"{passport}_{country}"
@@ -130,10 +124,16 @@ def get(passport, country):
         if now - cache[key]["time"] < CACHE_TTL:
             return cache[key]["data"]
 
-    result = api(passport, country)
+    # 1. PRIMARY API
+    result = travel_buddy_api(passport, country)
 
+    # 2. FREE FALLBACK API
     if not result:
-        result = fallback(passport, country)
+        result = travelbriefing_api(country)
+
+    # 3. LOCAL FALLBACK
+    if not result:
+        result = local_fallback(passport, country)
 
     cache[key] = {"data": result, "time": now}
     save_cache(cache)
