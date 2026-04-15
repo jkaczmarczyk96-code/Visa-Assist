@@ -5,6 +5,7 @@ import time
 import streamlit as st
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from countries import to_api_format
 
 
 CACHE_FILE = "cache.json"
@@ -12,14 +13,14 @@ CACHE_TTL = 60 * 60 * 24 * 30
 
 
 # =========================
-# TIME
+# 🕒 TIME
 # =========================
 def get_cz_time():
     return datetime.now(ZoneInfo("Europe/Prague"))
 
 
 # =========================
-# CACHE
+# 💾 CACHE
 # =========================
 def load_cache():
     if os.path.exists(CACHE_FILE):
@@ -33,26 +34,7 @@ def save_cache(cache):
 
 
 # =========================
-# NORMALIZE
-# =========================
-ISO_API = {
-    "United States": "US",
-    "United Kingdom": "GB",
-    "South Korea": "KR",
-    "United Arab Emirates": "AE",
-    "Egypt": "EG",
-    "Japan": "JP",
-    "Thailand": "TH",
-    "Canada": "CA"
-}
-
-
-def normalize_country(value):
-    return ISO_API.get(value, value)
-
-
-# =========================
-# COLOR DETECTION
+# 🎨 COLOR DETECTION
 # =========================
 def detect_color(text):
     t = (text or "").lower()
@@ -70,7 +52,7 @@ def detect_color(text):
 
 
 # =========================
-# DURATION PARSER
+# ⏳ DURATION PARSER
 # =========================
 def extract_max_stay(text):
     if not text:
@@ -89,7 +71,7 @@ def extract_max_stay(text):
 
 
 # =========================
-# API
+# 🌐 API
 # =========================
 def travel_buddy_api(passport, country):
     try:
@@ -104,8 +86,8 @@ def travel_buddy_api(passport, country):
         }
 
         payload = {
-            "passport": normalize_country(passport),
-            "destination": normalize_country(country)
+            "passport": to_api_format(passport),
+            "destination": to_api_format(country)
         }
 
         r = requests.post(url, headers=headers, json=payload, timeout=8)
@@ -128,6 +110,9 @@ def travel_buddy_api(passport, country):
     return None
 
 
+# =========================
+# 🌍 FALLBACK API
+# =========================
 def travelbriefing_api(country):
     try:
         url = f"https://travelbriefing.org/{country.replace(' ', '_')}?format=json"
@@ -152,6 +137,9 @@ def travelbriefing_api(country):
     return None
 
 
+# =========================
+# 🧠 RULE ENGINE
+# =========================
 def rule_engine(passport, country):
     rules = {
         ("CZ", "Egypt"): ("Visa on arrival", "30 days", "blue"),
@@ -173,7 +161,7 @@ def rule_engine(passport, country):
 
 
 # =========================
-# MAIN
+# 🚀 MAIN ENGINE
 # =========================
 def get(passport, country):
 
@@ -183,16 +171,23 @@ def get(passport, country):
 
     debug = []
 
+    # =========================
+    # CACHE
+    # =========================
     if key in cache and now - cache[key]["time"] < CACHE_TTL:
         debug.append("⚡ Cache HIT")
+
         data = cache[key]["data"]
         data["debug"] = debug
         return data
 
     debug.append("🆕 Cache MISS")
 
+    # =========================
+    # API PIPELINE
+    # =========================
     result = travel_buddy_api(passport, country)
-    debug.append("✔ API used" if result else "❌ API failed")
+    debug.append("✔ Travel Buddy API used" if result else "❌ Travel Buddy API failed")
 
     if not result:
         result = travelbriefing_api(country)
@@ -200,10 +195,10 @@ def get(passport, country):
 
     if not result:
         result = rule_engine(passport, country)
-        debug.append("✔ Rule engine used" if result else "❌ Rule engine failed")
+        debug.append("✔ Rule engine used" if result else "❌ Rule engine not matched")
 
     if not result:
-        debug.append("⚠ Fallback used")
+        debug.append("⚠ Using fallback")
         result = {
             "visa_name": "Visa rules vary",
             "visa_duration": "Check embassy",
@@ -211,15 +206,28 @@ def get(passport, country):
             "source": "Fallback"
         }
 
+    # =========================
+    # POST PROCESS
+    # =========================
     combined = f"{result.get('visa_name')} {result.get('visa_duration')}"
 
     result["visa_color"] = detect_color(combined)
     result["visa_duration"] = extract_max_stay(result.get("visa_duration"))
 
+    # =========================
+    # TIME + DEBUG
+    # =========================
     result["generated_at"] = get_cz_time().strftime("%Y-%m-%d %H:%M:%S")
     result["debug"] = debug
 
-    cache[key] = {"data": result, "time": now}
+    # =========================
+    # CACHE SAVE
+    # =========================
+    cache[key] = {
+        "data": result,
+        "time": now
+    }
+
     save_cache(cache)
 
     return result
