@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import time
+import streamlit as st
 from bs4 import BeautifulSoup
 
 CACHE_FILE = "cache.json"
@@ -22,13 +23,20 @@ def save_cache(cache):
 
 
 # ======================
-# API
+# API (TRAVEL BUDDY)
 # ======================
 def api(passport, country):
+
     try:
+        api_key = st.secrets["TRAVEL_BUDDY_API_KEY"]
+
         r = requests.get(
             "https://api.travel-buddy.ai/v2/visa/check",
-            params={"passport": passport, "destination": country},
+            headers={"Authorization": f"Bearer {api_key}"},
+            params={
+                "passport": passport,
+                "destination": country
+            },
             timeout=5
         )
 
@@ -39,6 +47,7 @@ def api(passport, country):
                 "days": d.get("stay_days"),
                 "source": "API"
             }
+
     except:
         pass
 
@@ -66,7 +75,7 @@ def wiki(passport, country):
 
 
 # ======================
-# HLAVNÍ FUNKCE
+# HLAVNÍ LOGIKA
 # ======================
 def get(passport, country):
 
@@ -74,7 +83,7 @@ def get(passport, country):
     key = f"{passport}_{country}"
     now = time.time()
 
-    # CACHE HIT
+    # CACHE (30 dní)
     if key in cache:
         item = cache[key]
         if now - item["time"] < CACHE_TTL:
@@ -87,7 +96,7 @@ def get(passport, country):
     if not result:
         result = wiki(passport, country)
 
-    # FINAL FALLBACK
+    # FINAL
     if not result:
         result = {
             "visa": None,
@@ -95,7 +104,6 @@ def get(passport, country):
             "source": "UNKNOWN"
         }
 
-    # SAVE CACHE
     cache[key] = {
         "data": result,
         "time": now
