@@ -4,9 +4,15 @@ from countries import COUNTRIES
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+# =========================
+# 🕒 CZ TIME
+# =========================
 def get_cz_time():
     return datetime.now(ZoneInfo("Europe/Prague"))
 
+# =========================
+# ⚙️ PAGE
+# =========================
 st.set_page_config(page_title="Visa Assist", page_icon="🌍", layout="centered")
 
 # =========================
@@ -14,7 +20,9 @@ st.set_page_config(page_title="Visa Assist", page_icon="🌍", layout="centered"
 # =========================
 st.markdown("""
 <style>
-body {background-color:#f4f7fb;}
+body {
+    background-color:#f4f7fb;
+}
 
 .block-container {
     max-width: 900px;
@@ -62,29 +70,33 @@ if st.button("🔍 Zkontrolovat vízové podmínky"):
 
     cz_time = get_cz_time()
 
+    # 🎨 BARVA
     color_map = {
         "green": "#28a745",
         "blue": "#007bff",
         "yellow": "#ffc107",
         "red": "#dc3545"
     }
-
     color = color_map.get(result.get("visa_color"), "#999")
 
-    st.markdown(f"""
+    # =========================
+    # HTML (DŮLEŽITÉ!)
+    # =========================
+    html = f"""
     <div class="card">
         <h3>📊 Výsledek</h3>
 
         <p><b>🌍 Země:</b> {country}</p>
-        <p><b>🛂 Víza:</b> {result.get("visa_name")}</p>
-        <p><b>⏳ Délka:</b> {result.get("visa_duration")}</p>
+        <p><b>🛂 Víza:</b> {result.get("visa_name", "N/A")}</p>
+        <p><b>⏳ Délka:</b> {result.get("visa_duration", "N/A")}</p>
 
         <p><b>🎨 Kategorie:</b> 
         <span style="background:{color};color:white;padding:4px 8px;border-radius:6px;">
-        {result.get("visa_color")}
-        </span></p>
+        {result.get("visa_color", "N/A")}
+        </span>
+        </p>
 
-        <p><b>🧠 Zdroj:</b> {result.get("source")}</p>
+        <p><b>🧠 Zdroj:</b> {result.get("source", "N/A")}</p>
 
         <hr>
 
@@ -93,7 +105,10 @@ if st.button("🔍 Zkontrolovat vízové podmínky"):
         </p>
 
         <p style="font-size:12px;color:#666;">
-        💾 Uloženo do cache: {result.get("generated_at")}
+        💾 Uloženo do cache: {result.get("generated_at", "N/A")}
         </p>
     </div>
-    """, unsafe_allow_html=True)
+    """
+
+    # 🔥 KLÍČOVÝ FIX
+    st.markdown(html, unsafe_allow_html=True)
