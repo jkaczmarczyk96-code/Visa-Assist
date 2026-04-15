@@ -21,7 +21,6 @@ COUNTRIES = sorted([
     "Georgia",
     "Ghana",
     "Hong Kong",
-    "Iceland",
     "India",
     "Indonesia",
     "Ireland",
