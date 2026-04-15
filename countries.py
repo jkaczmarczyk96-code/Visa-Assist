@@ -1,0 +1,91 @@
+COUNTRIES_100 = {
+    "CZ": "Czech Republic",
+    "SK": "Slovakia",
+    "DE": "Germany",
+    "FR": "France",
+    "IT": "Italy",
+    "ES": "Spain",
+    "PT": "Portugal",
+    "NL": "Netherlands",
+    "BE": "Belgium",
+    "CH": "Switzerland",
+    "AT": "Austria",
+    "PL": "Poland",
+    "HU": "Hungary",
+    "RO": "Romania",
+    "BG": "Bulgaria",
+    "GR": "Greece",
+    "HR": "Croatia",
+
+    "SE": "Sweden",
+    "NO": "Norway",
+    "FI": "Finland",
+    "DK": "Denmark",
+    "IS": "Iceland",
+    "IE": "Ireland",
+
+    "GB": "United Kingdom",
+    "US": "United States",
+    "CA": "Canada",
+    "MX": "Mexico",
+
+    "BR": "Brazil",
+    "AR": "Argentina",
+    "CL": "Chile",
+    "CO": "Colombia",
+    "PE": "Peru",
+
+    "ZA": "South Africa",
+    "NG": "Nigeria",
+    "KE": "Kenya",
+    "EG": "Egypt",
+    "MA": "Morocco",
+
+    "AE": "United Arab Emirates",
+    "SA": "Saudi Arabia",
+    "QA": "Qatar",
+    "TR": "Turkey",
+
+    "IN": "India",
+    "CN": "China",
+    "JP": "Japan",
+    "KR": "South Korea",
+
+    "TH": "Thailand",
+    "VN": "Vietnam",
+    "MY": "Malaysia",
+    "SG": "Singapore",
+    "ID": "Indonesia",
+    "PH": "Philippines",
+
+    "AU": "Australia",
+    "NZ": "New Zealand",
+
+    "RU": "Russia",
+    "UA": "Ukraine",
+    "GE": "Georgia",
+    "AM": "Armenia",
+    "AZ": "Azerbaijan",
+
+    "IL": "Israel",
+    "JO": "Jordan",
+    "LB": "Lebanon",
+
+    "PK": "Pakistan",
+    "BD": "Bangladesh",
+    "LK": "Sri Lanka",
+
+    "UZ": "Uzbekistan",
+    "KZ": "Kazakhstan",
+    "MN": "Mongolia",
+
+    "CR": "Costa Rica",
+    "PA": "Panama",
+    "UY": "Uruguay",
+    "PY": "Paraguay",
+
+    "CU": "Cuba",
+    "DO": "Dominican Republic",
+    "JM": "Jamaica",
+    "BS": "Bahamas"
+}
