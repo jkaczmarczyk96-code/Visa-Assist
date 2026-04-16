@@ -1,31 +1,8 @@
 import streamlit as st
-from engine import process_query
+from engine import get
+from countries import COUNTRIES
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from openai import OpenAI, RateLimitError
-import os
-import time
-
-
-# =========================
-# 🔑 API KEYS
-# =========================
-def get_api_key(name):
-    if name in st.secrets:
-        return st.secrets[name]
-    return os.getenv(name)
-
-
-OPENAI_API_KEY = get_api_key("OPENAI_API_KEY")
-RAPID_API_KEY = get_api_key("TRAVEL_BUDDY_API_KEY")
-
-if not RAPID_API_KEY:
-    st.error("❌ Chybí TRAVEL_BUDDY_API_KEY")
-    st.stop()
-
-openai_client = None
-if OPENAI_API_KEY:
-    openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # =========================
@@ -39,9 +16,6 @@ def get_cz_time():
 # 🌍 MZV LINK
 # =========================
 def get_mzv_link(country, passport):
-    if not country:
-        return None
-
     slug = country.lower().replace(" ", "-")
 
     if passport == "CZ":
@@ -54,188 +28,63 @@ def get_mzv_link(country, passport):
 
 
 # =========================
-# ⚙️ PAGE
+# PAGE
 # =========================
-st.set_page_config(page_title="Visa AI Chatbot", page_icon="🌍")
+st.set_page_config(page_title="Visa Assist", page_icon="🌍")
 
-st.title("🌍 Visa AI asistent")
-st.caption("Zeptej se na vízové podmínky")
+st.title("🌍 Visa Assist")
+st.caption("Rychlá kontrola vízových podmínek")
 
 st.divider()
 
 
 # =========================
-# SETTINGS
-# =========================
-use_ai = st.checkbox("🤖 Použít AI odpověď", value=True)
-debug_mode = st.checkbox("🐞 Debug režim")
-
-
-# =========================
-# SESSION STATE
-# =========================
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-if "last_input" not in st.session_state:
-    st.session_state.last_input = ""
-
-if "last_call" not in st.session_state:
-    st.session_state.last_call = 0
-
-
-# =========================
-# CHAT HISTORY
-# =========================
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-
-
-# =========================
-# AI RESPONSE
-# =========================
-def generate_ai_response(user_input, data):
-
-    if not openai_client:
-        return None
-
-    try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            timeout=10,
-            temperature=0.4,
-            messages=[
-                {"role": "system", "content": "Jsi asistent pro vízové informace. Odpovídej česky stručně."},
-                {"role": "user", "content": user_input},
-                {
-                    "role": "system",
-                    "content": f"""
-                    Země: {data.get("country")}
-                    Pas: {data.get("passport")}
-                    Typ víza: {data.get("visa_type")}
-                    Pobyt: {data.get("duration")}
-                    """
-                }
-            ]
-        )
-
-        return response.choices[0].message.content
-
-    except RateLimitError:
-        return None
-
-    except Exception:
-        return None
-
-
-# =========================
-# FALLBACK
-# =========================
-def fallback_answer(data):
-    return f"""
-🌍 **{data.get('country')}**
-
-🛂 Typ víza: {data.get('visa_type')}
-⏳ Maximální pobyt: {data.get('duration')}
-
-📌 Zdroj: {data.get('source')}
-
-ℹ️ Doporučujeme ověřit aktuální podmínky na stránkách MZV.
-"""
-
-
-# =========================
 # INPUT
 # =========================
-user_input = st.chat_input("Napiš dotaz...")
-
-
-if user_input and user_input.strip() != "":
-
-    # DUPLICATE FIX
-    if user_input == st.session_state.last_input:
-        st.stop()
-    st.session_state.last_input = user_input
-
-    # RATE LIMIT
-    if time.time() - st.session_state.last_call < 2:
-        st.warning("⏳ Počkej chvíli...")
-        st.stop()
-    st.session_state.last_call = time.time()
-
-    # USER MESSAGE
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
-
-    with st.chat_message("user"):
-        st.write(user_input)
-
-    # LOADING
-    status = st.empty()
-    status.info("⏳ Zpracovávám...")
-
-    # ENGINE
-    result = process_query(user_input, RAPID_API_KEY)
-
-    # RESPONSE
-    if result.get("error"):
-        answer = result["error"]
-        status.error(answer)
-
-    else:
-        if use_ai:
-            ai_answer = generate_ai_response(user_input, result)
-
-            if ai_answer:
-                answer = ai_answer
-            else:
-                answer = fallback_answer(result)
-                status.warning("AI nedostupná – použita základní odpověď")
-        else:
-            answer = fallback_answer(result)
-
-        status.empty()
-
-        with st.chat_message("assistant"):
-            st.write(answer)
-
-            # =========================
-            # ⚠️ VAROVÁNÍ
-            # =========================
-            if result.get("status") in ["evisa", "unknown"]:
-                st.warning("⚠️ Podmínky se mohou lišit. Ověř informace na MZV.")
-
-            # =========================
-            # 🌍 MZV LINK
-            # =========================
-            mzv_link = get_mzv_link(
-                result.get("country"),
-                result.get("passport")
-            )
-
-            if mzv_link:
-                st.markdown(f"🔗 Oficiální informace MZV: {mzv_link}")
-
-    # SAVE
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": answer
-    })
-
-    # DEBUG
-    if debug_mode:
-        with st.expander("🐞 Debug"):
-            for line in result.get("debug", []):
-                st.write(line)
-            st.json(result)
+passport = st.selectbox("🛂 Pas", ["CZ", "SK"])
+country = st.selectbox("🌍 Země", COUNTRIES)
 
 
 # =========================
-# API STATUS
+# ACTION
 # =========================
-with st.expander("🔑 API status"):
-    st.write("OpenAI:", bool(OPENAI_API_KEY))
-    st.write("RapidAPI:", bool(RAPID_API_KEY))
+if st.button("🔍 Zkontrolovat vízové podmínky"):
+
+    result = get(passport, country)
+
+    status_map = {
+        "green": ("Bez víza", "#2ecc71"),
+        "blue": ("Vízum při příjezdu / eVisa", "#3498db"),
+        "yellow": ("Nutná registrace / eVisa", "#f1c40f"),
+        "red": ("Vízum nutné před cestou", "#e74c3c")
+    }
+
+    label, color = status_map.get(result["visa_color"], ("Neznámé", "#999"))
+
+    with st.container(border=True):
+
+        st.markdown(
+            f'<div style="height:8px;background:{color};border-radius:10px;margin-bottom:10px;"></div>',
+            unsafe_allow_html=True
+        )
+
+        st.subheader(country)
+        st.markdown(f"**{label}**")
+
+        st.divider()
+
+        st.write("🛂 Typ víza:", result.get("visa_name"))
+        st.write("⏳ Maximální pobyt:", result.get("visa_duration"))
+
+        st.divider()
+
+        st.caption(f"Zdroj: {result.get('source')}")
+        st.caption(f"Aktualizováno: {result.get('generated_at')}")
+
+        # ⚠️ WARNING
+        if result.get("visa_color") == "yellow":
+            st.warning("⚠️ Podmínky se mohou lišit. Ověř informace na MZV.")
+
+        # 🌍 MZV LINK
+        mzv_link = get_mzv_link(country, passport)
+        st.markdown(f"🔗 Oficiální informace MZV: {mzv_link}")
