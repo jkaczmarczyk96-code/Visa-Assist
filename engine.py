@@ -5,7 +5,6 @@ import time
 import streamlit as st
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from countries import to_api_format
 
 
 CACHE_FILE = "cache.json"
@@ -34,7 +33,7 @@ def save_cache(cache):
 
 
 # =========================
-# 🎨 COLOR DETECTION
+# 🎨 COLOR DETECTION (UPRAVENO)
 # =========================
 def detect_color(text):
     t = (text or "").lower()
@@ -43,7 +42,7 @@ def detect_color(text):
         return "green"
     if "visa on arrival" in t:
         return "blue"
-    if "evisa" in t:
+    if "evisa" in t or "eta" in t:
         return "yellow"
     if "visa required" in t:
         return "red"
@@ -86,8 +85,8 @@ def travel_buddy_api(passport, country):
         }
 
         payload = {
-            "passport": to_api_format(passport),
-            "destination": to_api_format(country)
+            "passport": passport,
+            "destination": country
         }
 
         r = requests.post(url, headers=headers, json=payload, timeout=8)
@@ -111,7 +110,7 @@ def travel_buddy_api(passport, country):
 
 
 # =========================
-# 🌍 FALLBACK API
+# 🌍 FALLBACK
 # =========================
 def travelbriefing_api(country):
     try:
@@ -144,8 +143,6 @@ def rule_engine(passport, country):
     rules = {
         ("CZ", "Egypt"): ("Visa on arrival", "30 days", "blue"),
         ("SK", "Egypt"): ("Visa on arrival", "30 days", "blue"),
-        ("CZ", "Japan"): ("Visa free", "90 days", "green"),
-        ("SK", "Japan"): ("Visa free", "90 days", "green"),
     }
 
     if (passport, country) in rules:
@@ -161,7 +158,7 @@ def rule_engine(passport, country):
 
 
 # =========================
-# 🚀 MAIN ENGINE
+# 🚀 MAIN
 # =========================
 def get(passport, country):
 
@@ -169,36 +166,18 @@ def get(passport, country):
     key = f"{passport}_{country}"
     now = time.time()
 
-    debug = []
-
-    # =========================
-    # CACHE
-    # =========================
     if key in cache and now - cache[key]["time"] < CACHE_TTL:
-        debug.append("⚡ Cache HIT")
+        return cache[key]["data"]
 
-        data = cache[key]["data"]
-        data["debug"] = debug
-        return data
-
-    debug.append("🆕 Cache MISS")
-
-    # =========================
-    # API PIPELINE
-    # =========================
     result = travel_buddy_api(passport, country)
-    debug.append("✔ Travel Buddy API used" if result else "❌ Travel Buddy API failed")
 
     if not result:
         result = travelbriefing_api(country)
-        debug.append("✔ TravelBriefing used" if result else "❌ TravelBriefing failed")
 
     if not result:
         result = rule_engine(passport, country)
-        debug.append("✔ Rule engine used" if result else "❌ Rule engine not matched")
 
     if not result:
-        debug.append("⚠ Using fallback")
         result = {
             "visa_name": "Visa rules vary",
             "visa_duration": "Check embassy",
@@ -206,28 +185,13 @@ def get(passport, country):
             "source": "Fallback"
         }
 
-    # =========================
-    # POST PROCESS
-    # =========================
     combined = f"{result.get('visa_name')} {result.get('visa_duration')}"
 
     result["visa_color"] = detect_color(combined)
     result["visa_duration"] = extract_max_stay(result.get("visa_duration"))
-
-    # =========================
-    # TIME + DEBUG
-    # =========================
     result["generated_at"] = get_cz_time().strftime("%Y-%m-%d %H:%M:%S")
-    result["debug"] = debug
 
-    # =========================
-    # CACHE SAVE
-    # =========================
-    cache[key] = {
-        "data": result,
-        "time": now
-    }
-
+    cache[key] = {"data": result, "time": now}
     save_cache(cache)
 
     return result
