@@ -5,6 +5,7 @@ import time
 import streamlit as st
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from countries import to_api_format
 
 
 CACHE_FILE = "cache.json"
@@ -33,7 +34,17 @@ def save_cache(cache):
 
 
 # =========================
-# 🎨 COLOR DETECTION (UPRAVENO)
+# 🔑 API KEY (SECRETS SAFE)
+# =========================
+def get_api_key():
+    if "TRAVEL_BUDDY_API_KEY" in st.secrets:
+        return st.secrets["TRAVEL_BUDDY_API_KEY"]
+
+    return os.getenv("TRAVEL_BUDDY_API_KEY")
+
+
+# =========================
+# 🎨 COLOR DETECTION
 # =========================
 def detect_color(text):
     t = (text or "").lower()
@@ -73,9 +84,14 @@ def extract_max_stay(text):
 # 🌐 API
 # =========================
 def travel_buddy_api(passport, country):
-    try:
-        key = st.secrets["TRAVEL_BUDDY_API_KEY"]
 
+    key = get_api_key()
+
+    if not key:
+        print("❌ Missing API key")
+        return None
+
+    try:
         url = "https://visa-requirement.p.rapidapi.com/v2/visa/check"
 
         headers = {
@@ -85,11 +101,16 @@ def travel_buddy_api(passport, country):
         }
 
         payload = {
-            "passport": passport,
-            "destination": country
+            "passport": to_api_format(passport),
+            "destination": to_api_format(country)
         }
 
+        # DEBUG (můžeš odstranit později)
+        print("API PAYLOAD:", payload)
+
         r = requests.post(url, headers=headers, json=payload, timeout=8)
+
+        print("STATUS:", r.status_code)
 
         if r.status_code == 200:
             data = r.json().get("data", {})
@@ -169,8 +190,14 @@ def get(passport, country):
     if key in cache and now - cache[key]["time"] < CACHE_TTL:
         return cache[key]["data"]
 
+    # =========================
+    # API FIRST
+    # =========================
     result = travel_buddy_api(passport, country)
 
+    # =========================
+    # FALLBACKS
+    # =========================
     if not result:
         result = travelbriefing_api(country)
 
@@ -185,12 +212,18 @@ def get(passport, country):
             "source": "Fallback"
         }
 
+    # =========================
+    # POST PROCESS
+    # =========================
     combined = f"{result.get('visa_name')} {result.get('visa_duration')}"
 
     result["visa_color"] = detect_color(combined)
     result["visa_duration"] = extract_max_stay(result.get("visa_duration"))
     result["generated_at"] = get_cz_time().strftime("%Y-%m-%d %H:%M:%S")
 
+    # =========================
+    # CACHE SAVE
+    # =========================
     cache[key] = {"data": result, "time": now}
     save_cache(cache)
 
