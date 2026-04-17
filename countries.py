@@ -53,7 +53,7 @@ COUNTRIES_DATA = [
     # AMERIKA
     {"name": "United States", "iso": "US", "cz": "usa", "sk": "spojene-staty-americke", "continent": "severni_amerika"},
     {"name": "Canada", "iso": "CA", "cz": "kanada", "sk": "kanada", "continent": "severni_amerika"},
-    {"name": "Mexico", "iso": "MX", "cz": "mexiko", "sk": "mexiko", "continent": "stredni_amerika"},
+    {"name": "Mexico", "iso": "MX", "cz": "mexiko", "sk": "mexiko", "continent": "severni_amerika"},
     {"name": "Cuba", "iso": "CU", "cz": "kuba", "sk": "kuba", "continent": "stredni_amerika"},
     {"name": "Dominican Republic", "iso": "DO", "cz": "dominikanska_republika", "sk": "dominikanska_republika", "continent": "stredni_amerika"},
     {"name": "Jamaica", "iso": "JM", "cz": "jamajka", "sk": "jamajka", "continent": "stredni_amerika"},
